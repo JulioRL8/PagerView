@@ -12,11 +12,6 @@ public enum PagerViewAxis {
 }
 
 public enum PagerViewTransition {
-    public typealias PagerViewTransitionCustomModifier = (_ view: any View,
-                                                          _ index: Int,
-                                                          _ offset: CGFloat,
-                                                          _ geometry: GeometryProxy,
-                                                          _ axis: PagerViewAxis) -> any View
     case smooth
     case cube
     case custom(PagerViewCustomTransition)

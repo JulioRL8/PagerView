@@ -20,10 +20,10 @@ public struct PagerView: View {
     private var animation: Animation
 
     public init<Views>(axis: PagerViewAxis = .horizontal,
-                transition: PagerViewTransition = .cube,
-                index: Binding<Int> = .constant(.zero),
-                animation: Animation = .default,
-                @ViewBuilder content: () -> TupleView<Views>
+                       transition: PagerViewTransition = .cube,
+                       index: Binding<Int> = .constant(.zero),
+                       animation: Animation = .default,
+                       @ViewBuilder content: () -> TupleView<Views>
     ) {
         self.content = content().getViews
         self.axis = axis
