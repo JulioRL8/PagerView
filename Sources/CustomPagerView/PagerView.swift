@@ -12,24 +12,41 @@ public struct PagerView: View {
     let content: [AnyView]
     let transitionStyle: PagerViewTransition
 
-    @Binding private var index: Int
+    @Binding var index: Int
     @State private var offset: CGFloat = .zero
     @State private var translation: CGFloat = .zero
     @State private var size: CGSize = .zero
     private var infinityScroll: Bool = false
     private var animation: Animation
+    private var clipScrollEnd: Bool
 
     public init<Views>(axis: PagerViewAxis = .horizontal,
                        transition: PagerViewTransition = .cube,
                        index: Binding<Int> = .constant(.zero),
                        animation: Animation = .default,
+                       clipScrollEnd: Bool = true,
                        @ViewBuilder content: () -> TupleView<Views>
     ) {
         self.content = content().getViews
         self.axis = axis
         self.transitionStyle = transition
         self.animation = animation
+        self.clipScrollEnd = clipScrollEnd
         self._index = index
+    }
+
+    func isAbleToMove(geometry: GeometryProxy, gesture: DragGesture.Value) -> Bool {
+        guard clipScrollEnd else { return true }
+        let size = axis == .horizontal
+        ? geometry.size.width
+        : geometry.size.height
+        let maxValue = -size * CGFloat(content.count - 1)
+        let translationOffset = axis == .horizontal
+        ? gesture.translation.width
+        : gesture.translation.height
+        let newOffset = offset - translation + translationOffset
+        let correctRange = (maxValue...0.0)
+        return correctRange ~= newOffset
     }
 
     var pagerOffset: CGSize {
@@ -60,69 +77,84 @@ public struct PagerView: View {
         }
     }
 
+    func onChangedScroll(gesture: DragGesture.Value, geometry: GeometryProxy) {
+        guard scrollInfo.scrolling == nil || scrollInfo.scrolling == axis else {
+            offset -= translation
+            translation = .zero
+            return
+        }
+        
+        // Check clip
+        guard isAbleToMove(geometry: geometry, gesture: gesture) else { return }
+
+        if scrollInfo.scrolling == nil {
+            if abs(gesture.translation.height) > 20, axis == .vertical {
+                scrollInfo.scrolling = .vertical
+            } else if abs(gesture.translation.width) > 20, axis == .horizontal {
+                scrollInfo.scrolling = .horizontal
+            }
+        }
+        offset -= translation
+        if axis == .horizontal {
+            translation = gesture.translation.width
+        } else {
+            translation = gesture.translation.height
+        }
+        offset += translation
+    }
+
+    func onEndedScroll(value: DragGesture.Value, geometry: GeometryProxy) {
+        guard !infinityScroll else {
+            translation = .zero
+            return
+        }
+        let currentOffset = offset
+        let position: CGFloat
+        if axis == .horizontal {
+            position = currentOffset / geometry.size.width * -1
+        } else {
+            position = currentOffset / geometry.size.height * -1
+        }
+
+        var newIndex: CGFloat = position.rounded()
+        if newIndex >= CGFloat(content.count) {
+            newIndex -= 1
+        } else if newIndex < .zero {
+            newIndex = .zero
+        }
+
+        let newOffset: CGFloat
+        if axis == .horizontal {
+            newOffset = geometry.size.width * newIndex * -1
+        } else {
+            newOffset = geometry.size.height * newIndex * -1
+        }
+
+        withAnimation(animation) {
+            self.offset = newOffset
+        }
+        translation = .zero
+        scrollInfo.scrolling = nil
+        index = Int(newIndex)
+    }
+
     public var body: some View {
         GeometryReader { geometry in
             container(geometry: geometry)
+            .mask { // This to keep the view in its correct size
+                Color.black
+            }
             .offset(pagerOffset)
             .onAppear {
                 size = geometry.size
             }
             .simultaneousGesture(
                 DragGesture(coordinateSpace: .global)
-                .onChanged { gesture in
-                    guard scrollInfo.scrolling == nil || scrollInfo.scrolling == axis else {
-                        offset -= translation
-                        translation = .zero
-                        return
-                    }
-                    if scrollInfo.scrolling == nil {
-                        if abs(gesture.translation.height) > 20, axis == .vertical {
-                            scrollInfo.scrolling = .vertical
-                        } else if abs(gesture.translation.width) > 20, axis == .horizontal {
-                            scrollInfo.scrolling = .horizontal
-                        }
-                    }
-                    offset -= translation
-                    if axis == .horizontal {
-                        translation = gesture.translation.width
-                    } else {
-                        translation = gesture.translation.height
-                    }
-                    offset += translation
+                .onChanged {
+                    onChangedScroll(gesture: $0, geometry: geometry)
                 }
-                .onEnded { value in
-                    guard !infinityScroll else {
-                        translation = .zero
-                        return
-                    }
-                    let currentOffset = offset
-                    let position: CGFloat
-                    if axis == .horizontal {
-                        position = currentOffset / geometry.size.width * -1
-                    } else {
-                        position = currentOffset / geometry.size.height * -1
-                    }
-
-                    var newIndex: CGFloat = position.rounded()
-                    if newIndex >= CGFloat(content.count) {
-                        newIndex -= 1
-                    } else if newIndex < .zero {
-                        newIndex = .zero
-                    }
-
-                    let newOffset: CGFloat
-                    if axis == .horizontal {
-                        newOffset = geometry.size.width * newIndex * -1
-                    } else {
-                        newOffset = geometry.size.height * newIndex * -1
-                    }
-
-                    withAnimation(animation) {
-                        self.offset = newOffset
-                    }
-                    translation = .zero
-                    scrollInfo.scrolling = nil
-                    index = Int(newIndex)
+                .onEnded {
+                    onEndedScroll(value: $0, geometry: geometry)
                 }
             )
             .onChange(of: index, perform: { newValue in
@@ -184,6 +216,7 @@ struct CustomTabView_Previews: PreviewProvider {
                     PagerView(axis: .vertical, transition: .smooth) {
                         Color.blue
                         Color.orange
+                        Color.black
                     }
                     Color.yellow
                     PagerView(axis: .vertical, transition: .cube) {
@@ -207,6 +240,32 @@ struct CustomTabView_Previews: PreviewProvider {
                         }
                     }
                 })
+                .addPagerControl(alignment: .bottom) { index, content in
+                    HStack {
+                        ForEach(.zero..<content) { contentIndex in
+                            Button(action: {
+                                self.index = contentIndex
+                            }, label: {
+                                if contentIndex == index {
+                                    Circle()
+                                        .stroke()
+                                        .foregroundColor(Color.white)
+                                } else {
+                                    Circle()
+                                        .foregroundColor(Color.white)
+                                }
+                            })
+                        }
+                    }
+                    .frame(width: 80)
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .foregroundColor(.white.opacity(0.5))
+                        
+                    )
+                    .padding()
+                }
                 Button("Change", action: {
                     index = index == .zero ? 2 : .zero
                 })
