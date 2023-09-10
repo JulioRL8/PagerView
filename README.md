@@ -15,18 +15,18 @@ A brand new PagerView for SwiftUI with some transition styles like cube transiti
 
 ```swift
 PagerView(axis: PagerViewAxis = .horizontal,
-transition: PagerViewTransition = .cube,
-index: Binding<Int> = .constant(.zero),
-animation: Animation = .default,
-clipScrollEnd: Bool = true,
-@ViewBuilder content: () -> TupleView<Views>)
+        transition: PagerViewTransition = .cube,
+        index: Binding<Int> = .constant(.zero),
+        animation: Animation = .default,
+        clipScrollEnd: Bool = true,
+        @ViewBuilder content: () -> TupleView<Views>)
 ```
 
 ### Axis
 ```swift
 public enum PagerViewAxis {
-case vertical
-case horizontal
+    case vertical
+    case horizontal
 }
 ```
 
@@ -34,9 +34,9 @@ case horizontal
 
 ```swift
 public enum PagerViewTransition {
-case smooth
-case cube
-case custom(PagerViewCustomTransition)
+    case smooth
+    case cube
+    case custom(PagerViewCustomTransition)
 }
 ```
   
@@ -44,11 +44,11 @@ case custom(PagerViewCustomTransition)
 
 ```swift
 public protocol PagerViewCustomTransition {
-func getModifier<Content: View>(view: Content,
-index: Int,
-offset: CGFloat,
-geometry: GeometryProxy,
-axis: PagerViewAxis) -> any View
+    func getModifier<Content: View>(view: Content,
+        index: Int,
+        offset: CGFloat,
+        geometry: GeometryProxy,
+        axis: PagerViewAxis) -> any View
 }
 ```
     
